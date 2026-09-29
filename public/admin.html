@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Controle - Batalha TikTok Live</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f111a;
+      color: #f0f2f5;
+      font-family: 'Montserrat', sans-serif;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1a1d2e;
+      padding: 20px 24px;
+      border-radius: 16px;
+      border: 1px solid #2d314d;
+    }
+    h1 { font-size: 24px; font-weight: 900; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .status-badge.connected { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; font-weight: 900; }
+    .status-badge.waiting_live { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+    .status-badge.connecting { background: rgba(241, 196, 15, 0.2); color: #f1c40f; border: 1px solid #f1c40f; }
+    .status-badge.disconnected { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: #1a1d2e;
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid #2d314d;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+    input[type="text"] {
+      flex: 1;
+      background: #0f111a;
+      border: 1px solid #3d426b;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #ff0055;
+    }
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 800;
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: none;
+      transition: all 0.2s;
+    }
+    button:hover { opacity: 0.9; transform: translateY(-2px); }
+    button:active { transform: translateY(0); }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-success { background: #10b981; color: #fff; }
+    .btn-warning { background: #f59e0b; color: #000; }
+    .btn-copy { background: #8b5cf6; color: #fff; }
+
+    /* Times */
+    .teams-battle-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .team-box {
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: center;
+    }
+    .team-box.red-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 2px solid #ef4444;
+    }
+    .team-box.yellow-box {
+      background: rgba(245, 158, 11, 0.1);
+      border: 2px solid #f59e0b;
+    }
+    .team-box h2 { font-size: 22px; font-weight: 900; }
+    .team-box .score-val {
+      font-size: 52px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .btn-super-boost {
+      padding: 18px 24px;
+      font-size: 18px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+      animation: pulse-btn 2s infinite;
+    }
+    @keyframes pulse-btn {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+    .btn-super-boost.red {
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+      color: #fff;
+    }
+    .btn-super-boost.yellow {
+      background: linear-gradient(90deg, #d97706, #f59e0b);
+      color: #000;
+    }
+    .quick-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .quick-actions button {
+      padding: 8px 14px;
+      font-size: 14px;
+      background: #2d314d;
+      color: #fff;
+    }
+
+    /* Logs */
+    .logs-box {
+      background: #0f111a;
+      border-radius: 10px;
+      padding: 12px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-line {
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #1a1d2e;
+    }
+    .log-line.red { color: #fca5a5; border-left: 3px solid #ef4444; }
+    .log-line.yellow { color: #fde68a; border-left: 3px solid #f59e0b; }
+
+    .url-display {
+      background: #0f111a;
+      border: 1px dashed #4b5280;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>⚔️ Painel de Controle - Batalha de Camisas</h1>
+        <p style="color: #9ca3af; font-size: 14px; margin-top: 4px;">Gerenciamento em tempo real do TikTok Live Studio</p>
+      </div>
+      <div id="statusBadge" class="status-badge disconnected">
+        <span id="statusDot">●</span>
+        <span id="statusText">Desconectado</span>
+      </div>
+    </header>
+
+    <!-- Conexão e Pré-Login da Conta TikTok -->
+    <div class="card" style="border: 2px solid #3b82f6;">
+      <div class="card-title" style="color: #60a5fa; justify-content: space-between;">
+        <span>🔐 Conexão & Pré-Login da Conta TikTok (Prontidão para a Live)</span>
+        <span id="accountBadge" style="font-size: 13px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.15); padding: 4px 10px; border-radius: 8px;">
+          ✓ Conta Configurada
+        </span>
+      </div>
+      <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">
+        Deixe sua conta <strong>logada e salva localmente</strong> antes de abrir a live. O sistema fica em prontidão inteligente e conecta no chat assim que você clicar em <em>"Iniciar Transmissão"</em> no TikTok LIVE Studio.
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px;">
+        <div>
+          <label style="font-size: 13px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 6px;">Seu @ no TikTok:</label>
+          <input type="text" id="tiktokUser" placeholder="Ex: andradeindicai" value="andradeindicai" style="width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 6px;">
+            Session ID / Cookie da Conta (Recomendado para evitar bloqueios):
+          </label>
+          <input type="password" id="sessionCookie" placeholder="Cole o sessionId do tiktok.com aqui (opcional)" style="width: 100%;">
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
+        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: #cbd5e1;">
+          <input type="checkbox" id="chkAutoConnect" checked style="width: 16px; height: 16px; accent-color: #3b82f6;">
+          Conectar automaticamente e manter prontidão para a live
+        </label>
+        
+        <div style="display: flex; gap: 8px;">
+          <button id="btnSaveAccount" class="btn-primary" style="background: linear-gradient(135deg, #2563eb, #3b82f6);">
+            💾 Salvar Conta e Deixar Conectado
+          </button>
+          <button id="btnDisconnect" class="btn-danger" style="background: #475569;">
+            Desconectar
+          </button>
+        </div>
+      </div>
+
+      <!-- Banner de Status em Tempo Real -->
+      <div id="liveStatusBanner" style="background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 20px;">ℹ️</span>
+        <div style="flex: 1;">
+          <div id="bannerTitle" style="font-weight: 800; font-size: 14px; color: #38bdf8;">Status da Conta: Em Prontidão</div>
+          <div id="bannerDesc" style="font-size: 13px; color: #94a3b8; margin-top: 2px;">
+            Aguardando você iniciar a transmissão no TikTok LIVE Studio...
+          </div>
+        </div>
+      </div>
+
+      <!-- Guia Rápido de Ajuda -->
+      <details style="background: #111422; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #94a3b8;">
+        <summary style="cursor: pointer; font-weight: 700; color: #cbd5e1;">❓ Como pegar o Session ID no TikTok Web (10 segundos):</summary>
+        <ol style="margin-top: 8px; padding-left: 20px; line-height: 1.6;">
+          <li>Acesse <a href="https://www.tiktok.com" target="_blank" style="color: #60a5fa;">tiktok.com</a> no navegador e faça login na sua conta.</li>
+          <li>Pressione a tecla <code>F12</code> (Inspecionar) ➔ vá na aba <strong>Aplicativo (Application)</strong>.</li>
+          <li>No menu lateral esquerdo, clique em <strong>Cookies</strong> ➔ <code>https://www.tiktok.com</code>.</li>
+          <li>Procure pelo nome <code>sessionid</code>, dê duplo clique no valor dele, copie e cole no campo acima.</li>
+          <li>Pronto! Isso autentica a sua conta de forma permanente no servidor local.</li>
+        </ol>
+      </details>
+    </div>
+
+    <!-- Link do Overlay para o TikTok Live Studio -->
+    <div class="card">
+      <div class="card-title">📺 Link para adicionar no TikTok LIVE Studio (Browser Source)</div>
+      <div class="url-display">
+        <code id="overlayUrl" style="color: #a78bfa; font-weight: 700; font-size: 15px;">http://localhost:3000/overlay.html</code>
+        <button id="btnCopyUrl" class="btn-copy">📋 Copiar Link</button>
+      </div>
+      <p style="color: #9ca3af; font-size: 13px;">
+        💡 <strong>Como usar no TikTok LIVE Studio:</strong> Clique em <em>Adicionar Fonte</em> ➔ Escolha <em>Link do Navegador</em> ➔ Cole o link acima ➔ Defina Resolução <strong>1080 x 1920</strong> (ou ajuste no canvas) ➔ Pronto! Fundo já é 100% transparente.
+      </p>
+    </div>
+
+    <!-- Times e Super Boost (+50 Pontos) -->
+    <div class="teams-battle-row">
+      <!-- TIME VERMELHO -->
+      <div class="team-box red-box">
+        <h2 style="color: #ef4444;">🔴 TIME VERMELHO (Lula / PT 13)</h2>
+        <div class="score-val" id="adminRedScore" style="color: #ef4444;">50</div>
+        <p style="font-weight: 700; font-size: 14px;">Camisa Brasil Vermelho (Sacola #1)</p>
+        <button id="btnBuyRed" class="btn-super-boost red">
+          🛍️ COMPRA NA SACOLA (+50 PTS) 💥
+        </button>
+        <div class="quick-actions">
+          <button onclick="addManual('red', 1, 'Comentário manual')">+1 Pt</button>
+          <button onclick="addManual('red', 5, 'Presente manual Rosa')">+5 Pts</button>
+          <button onclick="addManual('red', 10, 'Super presente')">+10 Pts</button>
+          <button onclick="addManual('red', -5, 'Correção')">-5 Pts</button>
+        </div>
+      </div>
+
+      <!-- TIME AMARELO -->
+      <div class="team-box yellow-box">
+        <h2 style="color: #f59e0b;">🟡 TIME AMARELO (Bolsonaro 22)</h2>
+        <div class="score-val" id="adminYellowScore" style="color: #f59e0b;">50</div>
+        <p style="font-weight: 700; font-size: 14px;">Camisa Acorda Brasil (Sacola #2)</p>
+        <button id="btnBuyYellow" class="btn-super-boost yellow">
+          🛍️ COMPRA NA SACOLA (+50 PTS) 💥
+        </button>
+        <div class="quick-actions">
+          <button onclick="addManual('yellow', 1, 'Comentário manual')">+1 Pt</button>
+          <button onclick="addManual('yellow', 5, 'Presente manual 1 Moeda')">+5 Pts</button>
+          <button onclick="addManual('yellow', 10, 'Super presente')">+10 Pts</button>
+          <button onclick="addManual('yellow', -5, 'Correção')">-5 Pts</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ferramentas de Teste e Reset -->
+    <div class="grid-2">
+      <!-- Simulador de Teste Offline -->
+      <div class="card">
+        <div class="card-title">🧪 Testar Antes da Live (Simulador)</div>
+        <p style="color: #9ca3af; font-size: 13px;">Clique para ver as animações, alertas e sons funcionando no overlay sem precisar estar ao vivo:</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button onclick="testAction('red', 'comment', 'Lula 13 meu voto!')" class="btn-primary" style="background: #dc2626;">💬 Testar Chat Vermelho (+1)</button>
+          <button onclick="testAction('yellow', 'comment', 'Mito 22 acorda brasil!')" class="btn-primary" style="background: #d97706;">💬 Testar Chat Amarelo (+1)</button>
+          <button onclick="testAction('red', 'gift', 'Rosa 🌹')" class="btn-primary" style="background: #be185d;">🌹 Testar Rosa (+5)</button>
+          <button onclick="testAction('yellow', 'gift', 'TikTok 🎁')" class="btn-primary" style="background: #ca8a04;">🎁 Testar Presente Amarelo (+5)</button>
+        </div>
+      </div>
+
+      <!-- Gerenciamento da Partida -->
+      <div class="card">
+        <div class="card-title">⚙️ Gerenciar Placar</div>
+        <p style="color: #9ca3af; font-size: 13px;">Reiniciar placar para o início da live ou nova rodada:</p>
+        <div>
+          <button id="btnReset" class="btn-danger" style="width: 100%; padding: 14px;">🔄 REINICIAR PLACAR (50 VS 50)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log de Eventos -->
+    <div class="card">
+      <div class="card-title">📜 Registro de Atividades e Comentários Pontuados</div>
+      <div class="logs-box" id="logsBox">
+        <div class="log-line">Sistema iniciado. Aguardando conexão...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const adminRedScore = document.getElementById('adminRedScore');
+    const adminYellowScore = document.getElementById('adminYellowScore');
+    const logsBox = document.getElementById('logsBox');
+    const tiktokUser = document.getElementById('tiktokUser');
+    const sessionCookie = document.getElementById('sessionCookie');
+    const chkAutoConnect = document.getElementById('chkAutoConnect');
+    const btnSaveAccount = document.getElementById('btnSaveAccount');
+    const bannerTitle = document.getElementById('bannerTitle');
+    const bannerDesc = document.getElementById('bannerDesc');
+    const accountBadge = document.getElementById('accountBadge');
+
+    // Atualizar URL com porta atual
+    document.getElementById('overlayUrl').innerText = window.location.origin + '/overlay.html';
+
+    document.getElementById('btnCopyUrl').addEventListener('click', () => {
+      navigator.clipboard.writeText(window.location.origin + '/overlay.html');
+      alert('Link do Overlay copiado com sucesso! Cole no TikTok LIVE Studio.');
+    });
+
+    btnSaveAccount.addEventListener('click', () => {
+      const u = tiktokUser.value.trim();
+      const s = sessionCookie.value.trim();
+      const auto = chkAutoConnect.checked;
+      if (!u) {
+        alert('Por favor, informe seu @ de usuário do TikTok.');
+        return;
+      }
+      btnSaveAccount.disabled = true;
+      btnSaveAccount.innerText = 'Salvando...';
+
+      socket.emit('save_account_config', {
+        username: u,
+        sessionCookie: s,
+        autoConnect: auto
+      });
+
+      setTimeout(() => {
+        btnSaveAccount.disabled = false;
+        btnSaveAccount.innerText = '💾 Salvar Conta e Deixar Conectado';
+        alert('Configurações salvas! O sistema está pronto e monitorando sua conta.');
+      }, 500);
+    });
+
+    document.getElementById('btnDisconnect').addEventListener('click', () => {
+      socket.emit('disconnect_tiktok');
+      log('🔌 Desconectado pelo usuário.');
+    });
+
+    document.getElementById('btnBuyRed').addEventListener('click', () => {
+      const name = prompt('Nome do comprador (opcional):', 'Apoiador Vermelho') || 'Apoiador Vermelho';
+      socket.emit('trigger_purchase', { team: 'red', user: name });
+    });
+
+    document.getElementById('btnBuyYellow').addEventListener('click', () => {
+      const name = prompt('Nome do comprador (opcional):', 'Apoiador Amarelo') || 'Apoiador Amarelo';
+      socket.emit('trigger_purchase', { team: 'yellow', user: name });
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      if (confirm('Tem certeza que deseja reiniciar o placar da batalha para 50 x 50?')) {
+        socket.emit('reset_scores');
+      }
+    });
+
+    function addManual(team, amount, reason) {
+      socket.emit('manual_action', { team, amount, reason, user: 'Apresentador' });
+    }
+
+    function testAction(team, type, textOrGift) {
+      if (type === 'comment') {
+        socket.emit('test_event', { team, type: 'comment', text: textOrGift, user: 'Espectador_' + Math.floor(Math.random() * 900 + 100) });
+      } else if (type === 'gift') {
+        socket.emit('test_event', { team, type: 'gift', giftName: textOrGift, user: 'Presenteador_' + Math.floor(Math.random() * 900 + 100) });
+      }
+    }
+
+    function log(msg, team = '') {
+      const line = document.createElement('div');
+      line.className = 'log-line ' + team;
+      line.innerText = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+      logsBox.prepend(line);
+      if (logsBox.children.length > 50) logsBox.removeChild(logsBox.lastChild);
+    }
+
+    socket.on('init_state', state => {
+      if (state.scores) {
+        adminRedScore.innerText = state.scores.red;
+        adminYellowScore.innerText = state.scores.yellow;
+      }
+      if (state.tiktokUsername) {
+        tiktokUser.value = state.tiktokUsername;
+      }
+      if (state.accountConfig) {
+        chkAutoConnect.checked = state.accountConfig.autoConnect !== false;
+        if (state.accountConfig.hasSessionId) {
+          sessionCookie.placeholder = '•••••••••••• (Session ID salvo e ativo)';
+        }
+      }
+      updateStatus(state.status, state.tiktokUsername, state.statusMessage);
+    });
+
+    socket.on('status_changed', data => {
+      updateStatus(data.status, data.username, data.message || data.error);
+      if (data.status === 'connected') {
+        log('🟢 CONECTADO NA LIVE DE @' + data.username + ' (Sala ID: ' + (data.roomId || 'OK') + ')');
+      } else if (data.status === 'waiting_live') {
+        log('⏳ @' + data.username + ': Em prontidão, aguardando início da live no TikTok Studio.');
+      } else if (data.status === 'connecting') {
+        log('🟡 ' + (data.message || ('Verificando live de @' + data.username + '...')));
+      } else {
+        log('⚪ ' + (data.error || data.reason || 'Desconectado'));
+      }
+    });
+
+    function updateStatus(status, username, customMsg) {
+      statusBadge.className = 'status-badge ' + (status || 'disconnected');
+      
+      if (status === 'connected') {
+        statusText.innerText = '🔴 AO VIVO (@' + username + ')';
+        bannerTitle.innerText = '🔴 Live Conectada e Transmitindo!';
+        bannerTitle.style.color = '#ef4444';
+        bannerDesc.innerText = 'Interações, comentários e presentes estão sendo capturados e pontuados em tempo real.';
+        accountBadge.innerText = '● Ao Vivo Conectado';
+        accountBadge.style.color = '#ef4444';
+      } else if (status === 'waiting_live') {
+        statusText.innerText = '🟢 PRONTO (@' + username + ')';
+        bannerTitle.innerText = '🟢 Conta Conectada & Pronta para a Live!';
+        bannerTitle.style.color = '#10b981';
+        bannerDesc.innerText = 'O sistema já está monitorando. Assim que você clicar em "Iniciar Transmissão" no TikTok Studio, o chat entrará automaticamente!';
+        accountBadge.innerText = '✓ Conta Conectada (Em Espera)';
+        accountBadge.style.color = '#10b981';
+      } else if (status === 'connecting') {
+        statusText.innerText = 'Verificando...';
+        bannerTitle.innerText = '🟡 Verificando Conexão...';
+        bannerTitle.style.color = '#f59e0b';
+        bannerDesc.innerText = customMsg || 'Tentando estabelecer conexão com os servidores do TikTok...';
+      } else {
+        statusText.innerText = 'Desconectado';
+        bannerTitle.innerText = '⚪ Sistema Desconectado';
+        bannerTitle.style.color = '#94a3b8';
+        bannerDesc.innerText = 'Clique em "Salvar Conta e Deixar Conectado" para ativar a prontidão da sua live.';
+      }
+    }
+
+    socket.on('score_updated', data => {
+      adminRedScore.innerText = data.scores.red;
+      adminYellowScore.innerText = data.scores.yellow;
+      if (data.event && data.event.team !== 'both') {
+        log(data.event.team.toUpperCase() + ' (+' + data.event.amount + '): @' + data.event.user + ' -> ' + data.event.reason, data.event.team);
+      }
+    });
+
+    socket.on('super_purchase', data => {
+      log('🚨 COMPRA SUPER BOOST! ' + data.team.toUpperCase() + ' (+' + data.points + '): ' + data.user + ' comprou ' + data.shirtName, data.team);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,646 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1080, height=1920, initial-scale=1.0">
+  <title>Overlay Interativo Batalha TikTok</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Oswald:wght@700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: transparent !important;
+      font-family: 'Montserrat', sans-serif;
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+      position: relative;
+      color: #fff;
+    }
+
+    .screen-container {
+      width: 1080px;
+      height: 1920px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 100px 20px 30px 20px; /* 100px no topo para nao cobrir o perfil e ranking do TikTok */
+    }
+
+    /* ==========================================================
+       TOPO: HEADER DA BATALHA COM BARRA DINÂMICA
+       ========================================================== */
+    .battle-header {
+      width: 1040px;
+      background: rgba(10, 12, 22, 0.94);
+      border: 4px solid #ffd700;
+      border-radius: 24px;
+      padding: 14px 24px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 215, 0, 0.4);
+      z-index: 100;
+    }
+
+    .battle-title {
+      text-align: center;
+      font-size: 30px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #ffffff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+      margin-bottom: 6px;
+    }
+
+    .battle-subtitle {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 22px;
+      font-weight: 900;
+      color: #ffd700;
+      margin-bottom: 10px;
+      padding: 0 10px;
+    }
+
+    .team-badge-txt {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .score-num {
+      font-size: 38px;
+      font-weight: 900;
+      font-family: 'Oswald', sans-serif;
+      padding: 2px 12px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid;
+    }
+
+    .score-num.red {
+      color: #ff3b30;
+      border-color: #ff3b30;
+      box-shadow: 0 0 15px rgba(255, 59, 48, 0.5);
+    }
+
+    .score-num.yellow {
+      color: #ffd60a;
+      border-color: #ffd60a;
+      box-shadow: 0 0 15px rgba(255, 214, 10, 0.5);
+    }
+
+    /* BARRA DE DISPUTA */
+    .progress-track {
+      width: 100%;
+      height: 32px;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      border: 3px solid #333;
+      display: flex;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.9);
+    }
+
+    .progress-red {
+      height: 100%;
+      background: linear-gradient(90deg, #990000, #ff1a1a);
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding-left: 15px;
+      font-weight: 900;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(255, 30, 30, 0.8);
+    }
+
+    .progress-yellow {
+      height: 100%;
+      background: linear-gradient(90deg, #ffcc00, #e69900);
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 15px;
+      font-weight: 900;
+      font-size: 18px;
+      color: #000;
+      box-shadow: 0 0 20px rgba(255, 204, 0, 0.8);
+    }
+
+    .spark {
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      width: 8px;
+      background: #fff;
+      box-shadow: 0 0 20px 6px #fff, 0 0 35px 12px #ffea00;
+      z-index: 10;
+      transform: translateX(-50%);
+      border-radius: 4px;
+      transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ==========================================================
+       LATERAIS: CARDS FLUTUANTES COM AS CAMISAS OFICIAIS
+       ========================================================== */
+    .cards-row {
+      position: absolute;
+      top: 275px; /* Logo abaixo do header */
+      left: 15px;
+      right: 15px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 80;
+    }
+
+    .product-card {
+      width: 390px;
+      background: rgba(18, 12, 16, 0.94);
+      border-radius: 24px;
+      padding: 16px 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      border: 4px solid;
+      position: relative;
+    }
+
+    .product-card.red-side {
+      border-color: #ef4444;
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+    }
+
+    .product-card.yellow-side {
+      background: rgba(18, 18, 10, 0.94);
+      border-color: #f59e0b;
+      box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+    }
+
+    .sacola-badge {
+      position: absolute;
+      top: -18px;
+      left: 16px;
+      font-size: 16px;
+      font-weight: 900;
+      padding: 6px 16px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      letter-spacing: 0.5px;
+    }
+
+    .sacola-badge.red {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    .sacola-badge.yellow {
+      left: auto;
+      right: 16px;
+      background: #f59e0b;
+      color: #000;
+    }
+
+    .char-img {
+      width: 360px;
+      height: 360px;
+      object-fit: contain;
+      margin-top: 8px;
+      filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.7));
+      transition: transform 0.25s;
+    }
+
+    .char-img.bump {
+      transform: scale(1.08);
+    }
+
+    .product-title {
+      font-size: 24px;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin: 8px 0 10px 0;
+      letter-spacing: 0.5px;
+    }
+
+    .instructions-box {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 16px;
+      padding: 10px 12px;
+      font-size: 17px;
+      font-weight: 800;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+      border: 2px solid;
+    }
+
+    .instructions-box.red {
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+
+    .instructions-box.yellow {
+      border-color: rgba(245, 158, 11, 0.5);
+    }
+
+    .inst-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .inst-line.boost {
+      background: linear-gradient(90deg, #ff0055, #ff5500);
+      color: #fff;
+      font-weight: 900;
+      padding: 6px 10px;
+      border-radius: 10px;
+      margin-top: 4px;
+      font-size: 18px;
+      box-shadow: 0 0 15px rgba(255, 0, 85, 0.5);
+      animation: pulseBoost 1.8s infinite;
+    }
+
+    @keyframes pulseBoost {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    /* ==========================================================
+       RODAPÉ: FEED DE NOTIFICAÇÕES E BANNER DA SACOLA
+       ========================================================== */
+    .bottom-section {
+      width: 1040px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    /* FEED DE NOTIFICAÇÕES FLUTUANTES */
+    .recent-feed {
+      height: 110px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 8px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .feed-pill {
+      background: rgba(10, 12, 22, 0.94);
+      border-radius: 30px;
+      padding: 12px 24px;
+      font-size: 20px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      align-self: center;
+      border: 3px solid;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.85);
+      animation: slideIn 0.3s ease-out forwards;
+    }
+
+    .feed-pill.red {
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+
+    .feed-pill.yellow {
+      border-color: #f59e0b;
+      color: #fde68a;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(25px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .cta-banner {
+      background: #ff0055;
+      border: 4px solid #ffffff;
+      border-radius: 24px;
+      padding: 18px 24px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(255, 0, 85, 0.7);
+    }
+
+    .cta-title {
+      font-size: 32px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #ffffff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+
+    .cta-sub {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff580;
+      margin-top: 4px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+    }
+
+    /* POP-UP SUPER COMPRA (+50 PONTOS) */
+    .super-purchase-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      width: 850px;
+      background: rgba(12, 14, 26, 0.98);
+      border-radius: 36px;
+      padding: 40px 30px;
+      text-align: center;
+      border: 6px solid #ffd700;
+      box-shadow: 0 0 80px rgba(255, 215, 0, 0.9), 0 0 120px rgba(255, 0, 85, 0.8);
+      z-index: 1000;
+      transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none;
+    }
+
+    .super-purchase-modal.active {
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .modal-tag {
+      font-size: 36px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #ffea00;
+      text-shadow: 0 0 25px #ffea00;
+      margin-bottom: 15px;
+    }
+
+    .modal-buyer {
+      font-size: 44px;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .modal-shirt {
+      font-size: 28px;
+      font-weight: 800;
+      color: #00ffcc;
+      margin-bottom: 25px;
+    }
+
+    .modal-boost {
+      font-size: 72px;
+      font-weight: 900;
+      font-family: 'Oswald', sans-serif;
+      background: linear-gradient(90deg, #ff0055, #ffd700);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: pulseBoost 0.8s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="screen-container">
+    <!-- TOPO: BATALHA DINÂMICA (Com espaço para não colidir com o perfil/ranking do TikTok) -->
+    <div class="battle-header">
+      <div class="battle-title">BATALHA DE CAMISAS: QUEM VENCE?</div>
+      
+      <div class="battle-subtitle">
+        <div class="team-badge-txt" style="color: #ff4d4d;">
+          <span>TIME LULA (13)</span>
+          <span class="score-num red" id="redScore">50</span>
+        </div>
+
+        <div style="font-size: 22px; color: #fff; font-style: italic;">VS</div>
+
+        <div class="team-badge-txt" style="color: #ffd60a; flex-direction: row-reverse;">
+          <span>TIME BOLSONARO (22)</span>
+          <span class="score-num yellow" id="yellowScore">50</span>
+        </div>
+      </div>
+
+      <!-- Barra de Disputa em Tempo Real -->
+      <div class="progress-track">
+        <div class="progress-red" id="redBar" style="width: 50%;">
+          <span id="redPercent">50%</span>
+        </div>
+        <div class="spark" id="spark" style="left: 50%;"></div>
+        <div class="progress-yellow" id="yellowBar" style="width: 50%;">
+          <span id="yellowPercent">50%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LATERAIS: CARDS DAS DUAS CAMISAS COM AS CARICATURAS -->
+    <div class="cards-row">
+      <!-- Card Vermelho (Lula) -->
+      <div class="product-card red-side">
+        <div class="sacola-badge red">ITEM SACOLA #1</div>
+        <img src="/images/lula_cutout.png" alt="Lula 13" class="char-img" id="imgLula">
+        <div class="product-title" style="color: #ff4d4d;">CAMISA BRASIL 13</div>
+        <div class="instructions-box red">
+          <div class="inst-line">
+            <span>Comente LULA / PT:</span>
+            <span style="color: #ff4d4d;">+1 Pt</span>
+          </div>
+          <div class="inst-line">
+            <span>Envie ROSA:</span>
+            <span style="color: #ff99dd;">+5 Pts</span>
+          </div>
+          <div class="inst-line boost">
+            <span>COMPRE NA SACOLA:</span>
+            <span>+50 PTS!</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Amarelo (Flávio Bolsonaro) -->
+      <div class="product-card yellow-side">
+        <div class="sacola-badge yellow">ITEM SACOLA #2</div>
+        <img src="/images/flavio_cutout.png" alt="Flávio Bolsonaro 22" class="char-img" id="imgFlavio">
+        <div class="product-title" style="color: #ffd60a;">ACORDA BRASIL 22</div>
+        <div class="instructions-box yellow">
+          <div class="inst-line">
+            <span>Comente MITO / 22:</span>
+            <span style="color: #ffd60a;">+1 Pt</span>
+          </div>
+          <div class="inst-line">
+            <span>Envie 1 MOEDA:</span>
+            <span style="color: #ffd60a;">+5 Pts</span>
+          </div>
+          <div class="inst-line boost">
+            <span>COMPRE NA SACOLA:</span>
+            <span>+50 PTS!</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RODAPÉ: FEED AO VIVO DE NOTIFICAÇÕES E CTA TIKTOK SHOP -->
+    <div class="bottom-section">
+      <div class="recent-feed" id="feed"></div>
+
+      <div class="cta-banner">
+        <div class="cta-title">CLIQUE NA SACOLA LARANJA!</div>
+        <div class="cta-sub">COMPRE A CAMISA E DÊ +50 PONTOS PRO SEU TIME!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POP-UP SUPER COMPRA (+50 PONTOS) -->
+  <div class="super-purchase-modal" id="purchaseModal">
+    <div class="modal-tag">SUPER COMPRA CONFIRMADA!</div>
+    <div class="modal-buyer" id="modalBuyer">Nome do Comprador</div>
+    <div class="modal-shirt" id="modalShirt">Comprou a Camisa Vermelha</div>
+    <div class="modal-boost">+50 PONTOS!</div>
+  </div>
+
+  <script>
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = AudioContext ? new AudioContext() : null;
+
+    function playDing() {
+      if (!audioCtx) return;
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.25);
+      } catch (e) {}
+    }
+
+    function playFanfare() {
+      if (!audioCtx) return;
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.12);
+          gain.gain.setValueAtTime(0.4, audioCtx.currentTime + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + idx * 0.12 + 0.4);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime + idx * 0.12);
+          osc.stop(audioCtx.currentTime + idx * 0.12 + 0.4);
+        });
+      } catch (e) {}
+    }
+
+    const socket = io();
+
+    const redScoreEl = document.getElementById('redScore');
+    const yellowScoreEl = document.getElementById('yellowScore');
+    const redBarEl = document.getElementById('redBar');
+    const yellowBarEl = document.getElementById('yellowBar');
+    const redPercentEl = document.getElementById('redPercent');
+    const yellowPercentEl = document.getElementById('yellowPercent');
+    const sparkEl = document.getElementById('spark');
+    const feedEl = document.getElementById('feed');
+    const purchaseModalEl = document.getElementById('purchaseModal');
+    const modalBuyerEl = document.getElementById('modalBuyer');
+    const modalShirtEl = document.getElementById('modalShirt');
+    const imgLula = document.getElementById('imgLula');
+    const imgFlavio = document.getElementById('imgFlavio');
+
+    function updateDisplay(scores) {
+      const red = scores.red || 0;
+      const yellow = scores.yellow || 0;
+      const total = red + yellow;
+
+      redScoreEl.innerText = red;
+      yellowScoreEl.innerText = yellow;
+
+      let pRed = 50;
+      let pYellow = 50;
+      if (total > 0) {
+        pRed = Math.round((red / total) * 100);
+        pYellow = 100 - pRed;
+      }
+
+      redBarEl.style.width = pRed + '%';
+      yellowBarEl.style.width = pYellow + '%';
+      sparkEl.style.left = pRed + '%';
+
+      redPercentEl.innerText = pRed + '%';
+      yellowPercentEl.innerText = pYellow + '%';
+    }
+
+    function addFeedItem(event) {
+      if (!event || event.team === 'both') return;
+      const item = document.createElement('div');
+      item.className = 'feed-pill ' + (event.team === 'red' ? 'red' : 'yellow');
+      const icon = event.team === 'red' ? '🔴' : '🟡';
+      item.innerHTML = '<span>' + icon + ' <strong>@' + event.user + '</strong>: ' + event.reason + '</span> <strong style="color:#fff;">(+' + event.amount + ')</strong>';
+      feedEl.appendChild(item);
+
+      if (event.team === 'red') {
+        imgLula.classList.add('bump');
+        setTimeout(() => imgLula.classList.remove('bump'), 250);
+      } else {
+        imgFlavio.classList.add('bump');
+        setTimeout(() => imgFlavio.classList.remove('bump'), 250);
+      }
+
+      if (feedEl.children.length > 2) {
+        feedEl.removeChild(feedEl.children[0]);
+      }
+
+      setTimeout(() => {
+        if (item.parentNode) item.parentNode.removeChild(item);
+      }, 4500);
+
+      playDing();
+    }
+
+    socket.on('init_state', state => {
+      if (state && state.scores) updateDisplay(state.scores);
+    });
+
+    socket.on('score_updated', data => {
+      updateDisplay(data.scores);
+      addFeedItem(data.event);
+    });
+
+    socket.on('super_purchase', data => {
+      modalBuyerEl.innerText = data.user;
+      modalShirtEl.innerText = 'Comprou: ' + data.shirtName;
+      purchaseModalEl.className = 'super-purchase-modal active';
+      playFanfare();
+
+      setTimeout(() => {
+        purchaseModalEl.className = 'super-purchase-modal';
+      }, 5500);
+    });
+  </script>
+</body>
+</html>
